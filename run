@@ -1,0 +1,22 @@
+file=client.c
+
+if gcc $file -lncurses -lpthread -o exe_client; then
+   echo -e "\n\n compile hoe geche\n\n"
+else
+   echo -e "\n\n client hoeche na\n\n"
+fi
+
+
+# if g++ server.cpp -o exe_server; then
+#    if gcc client.c -lncurses -lpthread -o exe_client; then
+#         echo -e "\n\n  compile hoe geche\n\n" 
+#    else
+#         echo -e "\n\n client hocche na\n\n"
+# 	gcc client.c -lncurses -lpthread 2>&1 | head
+#    fi
+# else
+# 	echo  -e "\n\n server hocche na\n\n"
+# 	g++ server.cpp 2>&1 | head
+# fi
+
+
