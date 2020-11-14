@@ -1,59 +1,25 @@
-received: chatterjee1: aaa
-
 debug sender:  97 (a)
 debug sender: 115 (s)
 debug sender: 100 (d)
 debug sender: 102 (f)
-received: bikshan1: asdfasdfasdf
+received:      you joined as biskhan
 
-debug sender: 116 (t)
-debug sender: 104 (h)
-debug sender: 105 (i)
-debug sender: 107 (k)
-debug sender:  32 ( )
-debug sender:  97 (a)
-debug sender:  99 (c)
-debug sender: 104 (h)
-debug sender: 101 (e)
-received: chatterjee1:received: chdebug sender: 110 (n)
-received: bikshan1: na
 
-received: bikshan1: na
-
-received: bikshan1: na
-
-received: bikshan1: na
-
-debug sender: 116 (t)
-debug sender: 104 (h)
-debug sender: 105 (i)
-debug sender: 107 (k)
-debug sender:  32 ( )
-debug sender:  97 (a)
-debug sender:  99 (c)
-debug sender: 104 (h)
-debug sender: 101 (e)
-debug sender:  10 (
-)
-received: chatterjee1:received: chdebug sender:  59 (;)
-received: bikshan1: asdfasdfasdfasdf
-
-received: 
-debug sender: -102 (š)
-sender: 102 (f)
-debug sender:  97 (a)
-debug sender: 115 (s)
-debug sender: 100 (d)
-debug sender: 102 (f)
-debug sender:  97 (a)
-debug sender: 115 (s)
-debug sender: 100 (d)
-debug sender: 102 (f)
 debug sender:  97 (a)
 debug sender: 115 (s)
 debug sender: 100 (d)
 debug sender: 102 (f)
 debug sender:  10 (
 )
-received: bikshan1: asdfasdfasdfasdf
+received: you1: asdfasdf
+
+
+received:      bikshan disconnected
+
+
+biskhan joined
+
+
+received: biskhan1: asdfasdf
+
 

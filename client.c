@@ -60,27 +60,12 @@ void* create_shared_memory(size_t size) {
 
 
 
-void generate_message(int n, char** arr)
+int is_normal_character(char ch)
 {
-    buffer[0] = 'a';
-    buffer[1] = 'b';
-    buffer[2] = 'c';
-    buffer[3] = '\0';
-
-    /* int idx = 0; */
-    /* for(int i=3; i<n; i++) */
-    /* { */
-    /* 	int j = 0; */
-    /* 	while(arr[i][j] != '\0') */
-    /* 	{ */
-    /* 	    buffer[idx++] = arr[i][j]; */
-    /* 	    j++; */
-    /* 	} */
-    /* 	buffer[idx++] = ' '; */
-    /* } */
-    /* buffer[idx] = '\0'; */
+    int x = (int)ch;
+    if(x >= 32 && x <= 126) return 1;
+    return false;
 }
-
 
 
 void setup_connection(int argc, char* argv[])
@@ -187,8 +172,8 @@ void img_sender() // img sender marker
 	    sem_post(mutex1);
 	    return;
 	}
-	else
-	input_buffer[idx++] = ch;
+	else if(is_normal_character(ch))
+	    input_buffer[idx++] = ch;
 	sem_post(mutex1);
     }
 
@@ -247,8 +232,8 @@ void sender() // sender marker
 	    img_sender(); 
 	    sem_wait(mutex1);
 	}
-	else
-	input_buffer[idx++] = ch;
+	else if(is_normal_character(ch))
+		input_buffer[idx++] = ch;
 	sem_post(mutex1);
 
 	// fprintf(err_fp, "debug sender: exit semaphore\n"); fflush(err_fp);
