@@ -13,6 +13,8 @@
 
 #include "util.h"
 
+#define debug 1
+
 
 // network
 char user_name[50];
@@ -102,26 +104,61 @@ void setup_connection(int argc, char* argv[])
 }
 
 
-void send_image(char* img)
+void send_image(char* img) // send image marker
 {
     FILE* img_fp = fopen(img, "rb");
     unsigned char img_buffer[1000000];
-    int i = 0;
-    while(fread(img_buffer+i, 1, 1, img_fp)) i++;
-    int N = i; i = 0;
-    while(i < N)
-    {
-	show_byte(err_fp, img_buffer[i]);
-	fprintf(err_fp, " ");
-	i++;
-	if(i%16 == 0) fprintf(err_fp, "\n");
-	fflush(err_fp);
-    }
-    fprintf(err_fp, "\n");
+    int i = 0; while(i < 1000000) img_buffer[i++] = '\0'; // clear buffer
 
-    FILE* test_fp = fopen("test.png", "wb");
-    fwrite(img_buffer, 1, N, test_fp);
-    fclose(test_fp);
+    i = 0; while(fread(img_buffer+i, 1, 1, img_fp)) i++; // read image
+    int N = i;
+
+    i = 0;
+    if(debug) // printing image bytes
+    {
+	while(i < N)
+	{
+	    show_byte(err_fp, img_buffer[i]);
+	    fprintf(err_fp, " ");
+	    i++;
+	    if(i%16 == 0) fprintf(err_fp, "\n");
+	    fflush(err_fp);
+	}
+	fprintf(err_fp, "\n");
+	fprintf(err_fp, "bytes: %d\n", N); fflush(err_fp);
+    }
+
+    // image header
+    int img_size = N;
+    buffer[0] = 'i';
+    buffer[1] = (img_size&0xFF000000)>>24;
+    buffer[2] = (img_size&0x00FF0000)>>16;
+    buffer[3] = (img_size&0x0000FF00)>>8;
+    buffer[4] = (img_size&0x000000FF);
+    write(sockfd, buffer, 5);
+
+
+    // image
+    // buffer[0] = 'a';
+    // buffer[1] = 'a';
+    // buffer[2] = 0;
+    // buffer[3] = 'b';
+    // buffer[4] = 'c';
+    // buffer[5] = 'd';
+    // buffer[6] = 'e';
+    // buffer[7] = '\0';
+
+    int sent_bytes = 0;
+    while(sent_bytes < img_size)
+    {
+	int x = write(sockfd, img_buffer+sent_bytes, img_size-sent_bytes);
+	sent_bytes += x;
+	if(debug) fprintf(err_fp, "debug: send_image sending %d/%d bytes\n", sent_bytes, img_size); fflush(err_fp);
+    }
+
+    // FILE* test_fp = fopen("test.png", "wb");
+    // fwrite(img_buffer, 1, N, test_fp);
+    // fclose(test_fp);
     fclose(img_fp);
 }
 
@@ -134,7 +171,7 @@ void img_sender() // img sender marker
     while(1)
     {
 	char ch = getch();
-	fprintf(err_fp, "debug img_sender: %3d (%c)\n", (int)ch, ch); fflush(err_fp);
+	if(debug) fprintf(err_fp, "debug img_sender: %3d (%c)\n", (int)ch, ch); fflush(err_fp);
 
 	sem_wait(mutex1);
 	if((int)ch == 127) // backspace (not allowed to remove image: prompt)
@@ -155,13 +192,13 @@ void img_sender() // img sender marker
 	}
 	else if((int)ch == 16) // ctrl + p
 	{
-	    fprintf(err_fp, "debug sender: ctrl p --\n"); fflush(err_fp);
+	    if(debug) fprintf(err_fp, "debug sender: ctrl p --\n"); fflush(err_fp);
 	    if((*scroll_start) > 1)
 		(*scroll_start) = (*scroll_start) - 1;
 	}
 	else if((int)ch == 14) // ctrl + n
 	{
-	    fprintf(err_fp, "debug sender: ctrl n ++\n"); fflush(err_fp);
+	    if(debug) fprintf(err_fp, "debug sender: ctrl n ++\n"); fflush(err_fp);
 	    if((*scroll_start) < 1000-1)
 		(*scroll_start) = (*scroll_start) + 1;
 	}
@@ -203,6 +240,7 @@ void sender() // sender marker
 	}
 	else if((int)ch == 10 && idx != 0) // enter
 	{
+	    appendfrontchar(input_buffer, 't');
 	    n = write(sockfd, input_buffer, strlen(input_buffer)); // send data
 
 	    idx = 0;
@@ -240,18 +278,60 @@ void sender() // sender marker
     }
 }
 
+int getbyte(int start, int idx)
+{
+    int i = start + idx*2; 
+    int u = (buffer[i]>=0 && buffer[i]<=9)? (buffer[i]-'0'):(buffer[i] - 'a' + 10);
+    i++;
+    int l = (buffer[i]>=0 && buffer[i]<=9)? (buffer[i]-'0'):(buffer[i] - 'a' + 10);
+    int ans = (u<<4)|l;
+    return ans;
+}
+
+void receive_image(int first_read) // receive image marker
+{
+    fprintf(err_fp, "debug receive image: first_read: %d\n", first_read); fflush(err_fp);
+    int i, img_idx = 0, read_bytes = 0; unsigned char img_buffer[1000000];
+    i = 0; while(i < 1000000) img_buffer[i++] = '\0'; // clear buffer
+    int img_size = (buffer[1] << 24) | (buffer[2] << 16) | (buffer[3] << 8) | (buffer[4]);
+    i = 5; img_idx = 0;
+    while(i < first_read) img_buffer[img_idx++] = buffer[i++]; // image bytes from initial read
+    read_bytes = first_read - 5;
+    fprintf(err_fp, "read_bytes=%d  img_size=%d\n", read_bytes, img_size); fflush(err_fp);
+    while(read_bytes < img_size)
+    {
+	fprintf(err_fp, "receiving image: %d / %d bytes\n", read_bytes, img_size); fflush(err_fp);
+	fill_zero(buffer, 1024);
+	int x = read(sockfd, buffer, 1024);
+	i = 0; while(i < x) img_buffer[img_idx++] = buffer[i++];
+	read_bytes += x;
+    }
+}
+
 void receiver() // receiver marker
 {
     // fprintf(err_fp, "debug reciver 1\n"); fflush(err_fp);
 
-    int idx = 0;
+    int idx = 0, disconnect_counter = 0;
     while(1)
     {
 	fill_zero(buffer, 1024); // reset buffer
-	n = read(sockfd, buffer, 1024);
-	fprintf(err_fp, "received: %s\n", buffer); fflush(err_fp);  fflush(err_fp);
-	int i = 0;
+	int read_bytes = read(sockfd, buffer, 1024);
 
+	if(read_bytes == 0)
+	{
+	    disconnect_counter++;
+	    if(disconnect_counter > 10) exit(1);
+	}
+
+	if(buffer[0] == 'i') // check if incoming message is an image
+	{
+	 receive_image(read_bytes);   
+	 return;
+	}
+	if(debug) fprintf(err_fp, "received: %s\n", buffer); fflush(err_fp);  fflush(err_fp);
+
+	int i = 0;
 	sem_wait(mutex1);
 	while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++];
 	sem_post(mutex1);

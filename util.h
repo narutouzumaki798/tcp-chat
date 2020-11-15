@@ -159,3 +159,24 @@ void show_byte(FILE* fp, unsigned char a)
     if(x < 10) fprintf(fp, "%d", x);
     else fprintf(fp, "%c", 'A'+(x-10));
 }
+
+
+
+void appendfrontchar(char* a, char x)
+{
+    int n = 0; 
+    while(a[n] != '\0') n++;
+
+    for(int i = n; i >= 1; i--)
+	a[i] = a[i-1];
+
+    a[0] = (char)x;
+}
+
+
+
+
+
+
+
+
