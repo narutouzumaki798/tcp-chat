@@ -332,6 +332,7 @@ void receiver() // receiver marker
 	    if(disconnect_counter > 10) exit(1);
 	}
 
+
 	if(buffer[0] == 'i') // check if incoming message is an image
 	{
 	 receive_image(read_bytes);   
@@ -339,7 +340,7 @@ void receiver() // receiver marker
 	}
 	else if(debug) fprintf(err_fp, "received: %s\n", buffer); fflush(err_fp);
 
-	int i = 0;
+	int i = 1;
 	sem_wait(mutex1);
 	while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++];
 	sem_post(mutex1);

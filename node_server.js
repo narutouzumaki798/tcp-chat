@@ -53,7 +53,7 @@ function img_sendall(socket)
 	// sockets[user_names[i]].once("drain", function(){
 	//     sockets[user_names[i]].write("[img] " + sender + ": test.png\n\n"); 
 	// });
-	sockets[user_names[i]].write("[img] " + sender + ": test.png\n\n"); 
+	sockets[user_names[i]].write("t[img] " + sender + ": test.png\n\n"); 
 	console.log("img: sending " + user_names[i]);
     }
 }
@@ -113,9 +113,9 @@ server.on("connection", function(socket){
 		for(i=0; i<user_names.length; i++) // sending joined message
 		{
 		    if(sock_map[fd] == user_names[i])
-			sockets[user_names[i]].write("     you joined as " + sock_map[fd] + "\n\n");
+			sockets[user_names[i]].write("t     you joined as " + sock_map[fd] + "\n\n");
 		    else
-			sockets[user_names[i]].write("     " + sock_map[fd] + " joined\n\n");
+			sockets[user_names[i]].write("t     " + sock_map[fd] + " joined\n\n");
 		}
 	    }
 	    else
@@ -132,9 +132,9 @@ server.on("connection", function(socket){
 		buffer = buffer.slice(1);
 		for(i=0; i<user_names.length; i++)
 		{
-		    sender = "";
-		    if(sock_map[fd] == user_names[i]) sender = ">> you";
-		    else sender = sock_map[fd];
+		    sender = "t";
+		    if(sock_map[fd] == user_names[i]) sender = sender + ">> you";
+		    else sender = sender + sock_map[fd];
 		    sockets[user_names[i]].write(sender + ": " + buffer + "\n\n");
 		}
 		break;
@@ -149,8 +149,8 @@ server.on("connection", function(socket){
 		    console.log("img ekbarei ese geche: " + read_bytes + " / " + img_size + " bytes");
 		    read_bytes = 0;
 		    img_size = 0;
+		    img_sendall(socket);
 		}
-
 		break;
 		
 	    } // inner switch
@@ -164,7 +164,7 @@ server.on("connection", function(socket){
 	for(i=0; i<user_names.length; i++) // sending disconnected message
 	{
 	    if(sock_map[fd] != user_names[i])
-		sockets[user_names[i]].write("     " + sock_map[fd] + " disconnected\n\n");
+		sockets[user_names[i]].write("t     " + sock_map[fd] + " disconnected\n\n");
 	}
 	console.log("end called");
 	console.log("---\n");
