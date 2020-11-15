@@ -173,7 +173,11 @@ void appendfrontchar(char* a, char x)
     a[0] = (char)x;
 }
 
-
+int min(int a, int b)
+{
+    if(a < b) return a;
+    return b;
+}
 
 
 

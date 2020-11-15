@@ -13,12 +13,12 @@
 
 #include "util.h"
 
-#define debug 1
+#define debug 0
 
 
 // network
 char user_name[50];
-char buffer[1024];
+unsigned char buffer[1024];
 int sockfd, portno, n;
 struct sockaddr_in serv_addr;
 struct hostent *server;
@@ -31,6 +31,7 @@ int width, height1, height2; // dimensions of boxes
 struct coord disp1;
 struct coord disp2;
 int* scroll_start;
+int* hard;
 
 
 // debug
@@ -131,21 +132,21 @@ void send_image(char* img) // send image marker
     // image header
     int img_size = N;
     buffer[0] = 'i';
-    buffer[1] = (img_size&0xFF000000)>>24;
-    buffer[2] = (img_size&0x00FF0000)>>16;
-    buffer[3] = (img_size&0x0000FF00)>>8;
-    buffer[4] = (img_size&0x000000FF);
+    buffer[1] = (img_size & 0xFF000000)>>24;
+    buffer[2] = (img_size & 0x00FF0000)>>16;
+    buffer[3] = (img_size & 0x0000FF00)>>8;
+    buffer[4] = (img_size & 0x000000FF);
     write(sockfd, buffer, 5);
 
 
     // image
     // buffer[0] = 'a';
-    // buffer[1] = 'a';
+    // buffer[1] = 'b';
     // buffer[2] = 0;
-    // buffer[3] = 'b';
-    // buffer[4] = 'c';
-    // buffer[5] = 'd';
-    // buffer[6] = 'e';
+    // buffer[3] = 'c';
+    // buffer[4] = 'd';
+    // buffer[5] = 'e';
+    // buffer[6] = 'f';
     // buffer[7] = '\0';
 
     int sent_bytes = 0;
@@ -252,17 +253,20 @@ void sender() // sender marker
 	    fprintf(err_fp, "debug sender: ctrl p --\n"); fflush(err_fp);
 	    if((*scroll_start) > 1)
 		(*scroll_start) = (*scroll_start) - 1;
+	    *hard = 1;
 	}
 	else if((int)ch == 14) // ctrl + n
 	{
 	    fprintf(err_fp, "debug sender: ctrl n ++\n"); fflush(err_fp);
 	    if((*scroll_start) < 1000-1)
 		(*scroll_start) = (*scroll_start) + 1;
+	    *hard = 1;
 	}
 	else if((int)ch == 5) // ctrl + e
 	{
-	    fprintf(err_fp, "debug sender: ctrl e img"); fflush(err_fp);
-	    system("feh img1.png");
+	    fprintf(err_fp, "debug sender: ctrl e img\n"); fflush(err_fp);
+	    system("feh test.png");
+	    *hard = 1;
 	}
 	else if((int)ch ==  9) // ctrl + i
 	{
@@ -290,22 +294,26 @@ int getbyte(int start, int idx)
 
 void receive_image(int first_read) // receive image marker
 {
-    fprintf(err_fp, "debug receive image: first_read: %d\n", first_read); fflush(err_fp);
+    if(debug) fprintf(err_fp, "debug receive image: first_read: %d\n", first_read); fflush(err_fp);
     int i, img_idx = 0, read_bytes = 0; unsigned char img_buffer[1000000];
     i = 0; while(i < 1000000) img_buffer[i++] = '\0'; // clear buffer
-    int img_size = (buffer[1] << 24) | (buffer[2] << 16) | (buffer[3] << 8) | (buffer[4]);
+    int img_size = (((int)buffer[1]) << 24) | (((int)buffer[2]) << 16) | (((int)buffer[3]) << 8) | (((int)buffer[4]));
     i = 5; img_idx = 0;
     while(i < first_read) img_buffer[img_idx++] = buffer[i++]; // image bytes from initial read
     read_bytes = first_read - 5;
-    fprintf(err_fp, "read_bytes=%d  img_size=%d\n", read_bytes, img_size); fflush(err_fp);
+    if(debug) fprintf(err_fp, "read_bytes=%d  img_size=%d\n", read_bytes, img_size); fflush(err_fp);
     while(read_bytes < img_size)
     {
-	fprintf(err_fp, "receiving image: %d / %d bytes\n", read_bytes, img_size); fflush(err_fp);
+	if(debug) fprintf(err_fp, "receiving image: %d / %d bytes\n", read_bytes, img_size); fflush(err_fp);
 	fill_zero(buffer, 1024);
-	int x = read(sockfd, buffer, 1024);
+	int x = read(sockfd, buffer, min(img_size-read_bytes, 1024));
 	i = 0; while(i < x) img_buffer[img_idx++] = buffer[i++];
 	read_bytes += x;
     }
+    if(debug) fprintf(err_fp, "finished receiving image: %d / %d bytes\n", read_bytes, img_size); fflush(err_fp);
+    FILE* test_fp = fopen("test.png", "wb");
+    fwrite(img_buffer, 1, img_size, test_fp);
+    fclose(test_fp);
 }
 
 void receiver() // receiver marker
@@ -327,9 +335,9 @@ void receiver() // receiver marker
 	if(buffer[0] == 'i') // check if incoming message is an image
 	{
 	 receive_image(read_bytes);   
-	 return;
+	 continue;
 	}
-	if(debug) fprintf(err_fp, "received: %s\n", buffer); fflush(err_fp);  fflush(err_fp);
+	else if(debug) fprintf(err_fp, "received: %s\n", buffer); fflush(err_fp);
 
 	int i = 0;
 	sem_wait(mutex1);
@@ -348,6 +356,21 @@ void reset_win(WINDOW* win)
     box(win, 0, 0);
 }
 
+void hard_reset()
+{
+    // werase(output_box); wrefresh(output_box);
+    // werase(input_box); wrefresh(input_box);
+    clear();
+    delwin(output_box);
+    delwin(input_box);
+    output_box = newwin(height1, width, corner1y, corner1x);
+    input_box = newwin(height2, width, corner2y, corner2x);
+    box(output_box, 0, 0);
+    box(input_box, 0, 0);
+
+    *hard = 0;
+}
+
 void display() // display marker
 {
     output_box = newwin(height1, width, corner1y, corner1x);
@@ -362,11 +385,13 @@ void display() // display marker
     int itr = 0;
     while(1)
     {
+	reset_win(input_box);
+
 	sem_wait(mutex1); // critical start
+	if(*hard) hard_reset();
 
 	// display 2 maker (intput box)
 	idx2 = 0; disp2.x = 1; disp2.y = 1;
-	reset_win(input_box);
 	while(input_buffer[idx2] != '\0')
 	{
 	    mvwaddch(input_box, disp2.y, disp2.x, input_buffer[idx2]);
@@ -472,6 +497,7 @@ void precomp()
 	    display1[i][j] = ' ';
     }
     *scroll_start = 1;
+    *hard = 0;
 }
 
 
@@ -495,6 +521,7 @@ int main(int argc, char *argv[])
     output_buffer = (char*)create_shared_memory(10000*sizeof(char));
     input_buffer = (char*)create_shared_memory(10000*sizeof(char));
     scroll_start = (int*)create_shared_memory(sizeof(int));
+    hard = (int*)create_shared_memory(sizeof(int));
     precomp();
 
     // sem_t* , whether share b/w process or thread, value

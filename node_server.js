@@ -34,13 +34,27 @@ function setCharAt(str,index,chr) {
 
 function img_sendall(socket)
 {
-    a = 0, b = 1024;
-    while(a < img.length)
-    {	
-	socket.write(img.slice(a, b));
-	a = a + 1024;
-	b = b + 1024;
-	console.log("sending image: " + a + " bytes");
+    // a = 0, b = 1024;
+    // while(a < img.length)
+    // {	
+    // 	socket.write(img.slice(a, b));
+    // 	a = a + 1024;
+    // 	b = b + 1024;
+    // 	console.log("sending image: " + a + " bytes");
+    // }
+    for(i = 0; i<user_names.length; i++)
+    {
+	sockets[user_names[i]].write(img);
+	sender = "";
+	if(sock_map[socket._handle.fd] == user_names[i])
+	    sender = ">> you";
+	else sender = sock_map[socket._handle.fd];
+
+	// sockets[user_names[i]].once("drain", function(){
+	//     sockets[user_names[i]].write("[img] " + sender + ": test.png\n\n"); 
+	// });
+	sockets[user_names[i]].write("[img] " + sender + ": test.png\n\n"); 
+	console.log("img: sending " + user_names[i]);
     }
 }
 
@@ -60,9 +74,8 @@ server.on("connection", function(socket){
 	    {
 		console.log("img ese geche: " + read_bytes + " / " + img_size + " bytes  img.size=" + img.length);
 		console.log("---\n");
-		console.log(img);
-		console.log(img.slice(100, 101));
 
+		// console.log(img);
 		//img = img.toString('hex');
 		//img = setCharAt(img, 1, 'i');
 		//img = img.slice(1); // reformat to hex string with i at beginning
@@ -120,9 +133,9 @@ server.on("connection", function(socket){
 		for(i=0; i<user_names.length; i++)
 		{
 		    sender = "";
-		    if(sock_map[fd] == user_names[i]) sender = "you";
+		    if(sock_map[fd] == user_names[i]) sender = ">> you";
 		    else sender = sock_map[fd];
-		    sockets[user_names[i]].write(sender + "1: " + buffer + "\n\n");
+		    sockets[user_names[i]].write(sender + ": " + buffer + "\n\n");
 		}
 		break;
 
