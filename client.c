@@ -265,7 +265,7 @@ void sender() // sender marker
 	else if((int)ch == 5) // ctrl + e
 	{
 	    fprintf(err_fp, "debug sender: ctrl e img\n"); fflush(err_fp);
-	    system("feh test.png");
+	    system("feh -d -x -g 960x720 test.png");
 	    *hard = 1;
 	}
 	else if((int)ch ==  9) // ctrl + i
@@ -361,7 +361,7 @@ void hard_reset()
 {
     // werase(output_box); wrefresh(output_box);
     // werase(input_box); wrefresh(input_box);
-    clear();
+    clear(); refresh();
     delwin(output_box);
     delwin(input_box);
     output_box = newwin(height1, width, corner1y, corner1x);
