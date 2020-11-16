@@ -108,6 +108,8 @@ void setup_connection(int argc, char* argv[])
 void send_image(char* img) // send image marker
 {
     FILE* img_fp = fopen(img, "rb");
+    if(img_fp == NULL) return; // image does not exist
+
     unsigned char img_buffer[1000000];
     int i = 0; while(i < 1000000) img_buffer[i++] = '\0'; // clear buffer
 
