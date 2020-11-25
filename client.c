@@ -178,43 +178,47 @@ void img_sender() // img sender marker
 	if(debug) fprintf(err_fp, "debug img_sender: %3d (%c)\n", (int)ch, ch); fflush(err_fp);
 
 	sem_wait(mutex1);
-	if((int)ch == 127) // backspace (not allowed to remove image: prompt)
+	switch((int)ch)
 	{
+	case 127: // backspace
 	    if(idx > 7)
 	    {
 		idx--; 
 		input_buffer[idx] = '\0';
 	    }
-	}
-	else if((int)ch == 10 && idx != 0) // enter
-	{
+	    break;
+
+	case 10: // enter
+	    if(idx == 0) break;
 	    send_image(input_buffer+7); // send img-location string to send_image() function
 	    idx = 0;
 	    while(input_buffer[idx] != '\0') { input_buffer[idx] = '\0'; idx++; } // erase buffer
 	    sem_post(mutex1);
 	    return;
-	}
-	else if((int)ch == 16) // ctrl + p
-	{
+
+	case 16: // ctrl + p
 	    if(debug) fprintf(err_fp, "debug sender: ctrl p --\n"); fflush(err_fp);
 	    if((*scroll_start) > 1)
 		(*scroll_start) = (*scroll_start) - 1;
-	}
-	else if((int)ch == 14) // ctrl + n
-	{
+	    break;
+
+	case 14: // ctrl + n
 	    if(debug) fprintf(err_fp, "debug sender: ctrl n ++\n"); fflush(err_fp);
 	    if((*scroll_start) < 1000-1)
 		(*scroll_start) = (*scroll_start) + 1;
-	}
-	else if((int)ch ==  9) // ctrl + i
-	{
+	    break;
+	    
+	case 9: // ctrl + i
 	    idx = 0;
 	    while(input_buffer[idx] != '\0') { input_buffer[idx] = '\0'; idx++; } // erase buffer
 	    sem_post(mutex1);
 	    return;
+
+	default:
+	   if(is_normal_character(ch))
+		input_buffer[idx++] = ch;
+	    break;
 	}
-	else if(is_normal_character(ch))
-	    input_buffer[idx++] = ch;
 	sem_post(mutex1);
     }
 
@@ -230,16 +234,13 @@ void recipient() // recipient marker
     while(recipients_buffer[r_idx] != '\0') input_buffer[idx++] = recipients_buffer[r_idx++]; // copy recipient list
     while(1) 
     {
-	// sleep(5);
-	// string tmp = "abcd";
-	// fprintf(err_fp, "sending: %s\n", tmp.c_str()); fflush(err_fp);
-	// n = write(sockfd, tmp.c_str(), (int)tmp.size());
 	char ch = getch();
 	fprintf(err_fp, "debug sender: %3d (%c)\n", (int)ch, ch); fflush(err_fp);
 
 	sem_wait(mutex1);
-	if((int)ch == 127) // backspace
+	switch((int)ch)
 	{
+	case 127: // backspace
 	    if(idx > 12) // cannot delete promt
 	    {
 		idx--; 
@@ -247,48 +248,50 @@ void recipient() // recipient marker
 		r_idx--;
 		recipients_buffer[r_idx] = '\0';
 	    }
-	}
-	else if((int)ch == 10 && idx != 0) // enter
-	{
+	    break;
+
+	case 10: // enter
+	    if(idx == 0) break;
 	    idx = 0;
 	    while(input_buffer[idx] != '\0') { input_buffer[idx] = '\0'; idx++; } // erase buffer
 	    sem_post(mutex1);
 	    return;
-	}
-	else if((int)ch == 16) // ctrl + p
-	{
+
+	case 16: // ctrl + p
 	    fprintf(err_fp, "debug sender: ctrl p --\n"); fflush(err_fp);
 	    if((*scroll_start) > 1)
 		(*scroll_start) = (*scroll_start) - 1;
 	    *hard = 1;
-	}
-	else if((int)ch == 14) // ctrl + n
-	{
+	    break;
+
+	case 14: // ctrl + n
 	    fprintf(err_fp, "debug sender: ctrl n ++\n"); fflush(err_fp);
 	    if((*scroll_start) < 1000-1)
 		(*scroll_start) = (*scroll_start) + 1;
 	    *hard = 1;
-	}
-	else if((int)ch == 5) // ctrl + e
-	{
+	    break;
+
+	case 5: // ctrl + e
 	    fprintf(err_fp, "debug sender: ctrl e img\n"); fflush(err_fp);
 	    system("feh -d -x -g 960x720 test.png");
 	    *hard = 1;
-	}
-	else if((int)ch ==  18) // ctrl + r
-	{
+	    break;
+
+	case 18: // ctrl + r
 	    idx = 0;
 	    while(input_buffer[idx] != '\0') { input_buffer[idx] = '\0'; idx++; } // erase buffer
 	    sem_post(mutex1);
 	    return;
-	}
-	else if(is_normal_character(ch))
-	{
-	    input_buffer[idx++] = ch;
-	    recipients_buffer[r_idx++] = ch;
+
+	default:
+	    if(is_normal_character(ch))
+	    {
+		input_buffer[idx++] = ch;
+		recipients_buffer[r_idx++] = ch;
+	    }
+	    break;
 	}
 	sem_post(mutex1);
-
 	// fprintf(err_fp, "debug sender: exit semaphore\n"); fflush(err_fp);
     }
 }
@@ -308,16 +311,18 @@ void sender() // sender marker
 	fprintf(err_fp, "debug sender: %3d (%c)\n", (int)ch, ch); fflush(err_fp);
 
 	sem_wait(mutex1);
-	if((int)ch == 127) // backspace
+	switch((int)ch)
 	{
+	case 127: // backspace
 	    if(idx > 0)
 	    {
 		idx--; 
 		input_buffer[idx] = '\0';
 	    }
-	}
-	else if((int)ch == 10 && idx != 0) // enter
-	{
+	    break;
+
+	case 10: // enter
+	    if(idx == 0) break;
 	    if(recipients_buffer[0] == '\0') // no recipient list
 	    {
 		appendfrontchar(input_buffer, 't');
@@ -332,50 +337,51 @@ void sender() // sender marker
 		append2(tmp_buffer, input_buffer); // message
 		n = write(sockfd, tmp_buffer, strlen(tmp_buffer));
 	    }
-
 	    idx = 0;
 	    while(input_buffer[idx] != '\0') { input_buffer[idx] = '\0'; idx++; } // erase buffer
 	    idx = 0;
-	}
-	else if((int)ch == 16) // ctrl + p
-	{
-	    fprintf(err_fp, "debug sender: ctrl p --\n"); fflush(err_fp);
+	    break;
+
+	case 16: // ctrl + p
+	    if(debug) fprintf(err_fp, "debug sender: ctrl p --\n"); fflush(err_fp);
 	    if((*scroll_start) > 1)
 		(*scroll_start) = (*scroll_start) - 1;
 	    *hard = 1;
-	}
-	else if((int)ch == 14) // ctrl + n
-	{
-	    fprintf(err_fp, "debug sender: ctrl n ++\n"); fflush(err_fp);
+	    break;
+
+	case 14: // ctrl + n
+	    if(debug) fprintf(err_fp, "debug sender: ctrl n ++\n"); fflush(err_fp);
 	    if((*scroll_start) < 1000-1)
 		(*scroll_start) = (*scroll_start) + 1;
 	    *hard = 1;
-	}
-	else if((int)ch == 5) // ctrl + e
-	{
+	    break;
+
+	case 5: // ctrl + e
 	    fprintf(err_fp, "debug sender: ctrl e img\n"); fflush(err_fp);
 	    system("feh -d -x -g 960x720 test.png");
 	    *hard = 1;
-	}
-	else if((int)ch ==  9) // ctrl + i
-	{
+	    break;
+	    
+	case 9: // ctrl + i 
 	    sem_post(mutex1);
 	    img_sender(); 
 	    idx = 0;
 	    sem_wait(mutex1);
-	}
-	else if((int)ch ==  18) // ctrl + r
-	{
+	    break;
+
+	case 18: // ctrl + r
 	    sem_post(mutex1);
 	    recipient(); 
 	    idx = 0;
 	    sem_wait(mutex1);
-	}
-	else if(is_normal_character(ch))
-		input_buffer[idx++] = ch;
-	sem_post(mutex1);
+	    break;
 
-	// fprintf(err_fp, "debug sender: exit semaphore\n"); fflush(err_fp);
+	default:
+	    if(is_normal_character(ch))
+		input_buffer[idx++] = ch;
+	    break;
+	} // switch
+	sem_post(mutex1);
     }
 }
 
