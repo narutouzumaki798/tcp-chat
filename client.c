@@ -18,10 +18,11 @@
 
 // network
 char user_name[50];
-unsigned char buffer[1024];
+unsigned char buffer[10000];
 int sockfd, portno, n;
 struct sockaddr_in serv_addr;
 struct hostent *server;
+char recipients_buffer[10000];
 
 // curses
 WINDOW* input_box;
@@ -85,23 +86,23 @@ void setup_connection(int argc, char* argv[])
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sockfd < 0) 
-        error("ERROR opening socket");
+	error("ERROR opening socket");
 
     server = gethostbyname(target_serv_addr);
     if (server == NULL) {
-        error("ERROR, no such host\n");
-        exit(0);
+	error("ERROR, no such host\n");
+	exit(0);
     }
 
     fill_zero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     bcopy((char *)server->h_addr, 
-         (char *)&serv_addr.sin_addr.s_addr,
-         server->h_length);
+	 (char *)&serv_addr.sin_addr.s_addr,
+	 server->h_length);
     serv_addr.sin_port = htons(portno);
 
     if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) 
-        error("ERROR connecting");
+	error("ERROR connecting");
 }
 
 
@@ -124,7 +125,7 @@ void send_image(char* img) // send image marker
 	    show_byte(err_fp, img_buffer[i]);
 	    fprintf(err_fp, " ");
 	    i++;
-	    if(i%16 == 0) fprintf(err_fp, "\n");
+	    if(i%16 == 0) fprintf(err_fp, "\n"); // hexdump er moto 16 byte kore ek line e
 	    fflush(err_fp);
 	}
 	fprintf(err_fp, "\n");
@@ -218,6 +219,80 @@ void img_sender() // img sender marker
     }
 
 }
+
+void recipient() // recipient marker
+{
+    // fprintf(err_fp, "sending: %s\n", user_name); fflush(err_fp);
+    // n = write(sockfd, user_name, strlen(user_name));
+    int idx = 0, r_idx = 0;
+    while(input_buffer[idx] != '\0') { input_buffer[idx++] = '\0'; } // erase buffer
+    copy2(input_buffer, "recipients: "); idx = 12; // prompt
+    while(recipients_buffer[r_idx] != '\0') input_buffer[idx++] = recipients_buffer[r_idx++]; // copy recipient list
+    while(1) 
+    {
+	// sleep(5);
+	// string tmp = "abcd";
+	// fprintf(err_fp, "sending: %s\n", tmp.c_str()); fflush(err_fp);
+	// n = write(sockfd, tmp.c_str(), (int)tmp.size());
+	char ch = getch();
+	fprintf(err_fp, "debug sender: %3d (%c)\n", (int)ch, ch); fflush(err_fp);
+
+	sem_wait(mutex1);
+	if((int)ch == 127) // backspace
+	{
+	    if(idx > 12) // cannot delete promt
+	    {
+		idx--; 
+		input_buffer[idx] = '\0';
+		r_idx--;
+		recipients_buffer[r_idx] = '\0';
+	    }
+	}
+	else if((int)ch == 10 && idx != 0) // enter
+	{
+	    idx = 0;
+	    while(input_buffer[idx] != '\0') { input_buffer[idx] = '\0'; idx++; } // erase buffer
+	    sem_post(mutex1);
+	    return;
+	}
+	else if((int)ch == 16) // ctrl + p
+	{
+	    fprintf(err_fp, "debug sender: ctrl p --\n"); fflush(err_fp);
+	    if((*scroll_start) > 1)
+		(*scroll_start) = (*scroll_start) - 1;
+	    *hard = 1;
+	}
+	else if((int)ch == 14) // ctrl + n
+	{
+	    fprintf(err_fp, "debug sender: ctrl n ++\n"); fflush(err_fp);
+	    if((*scroll_start) < 1000-1)
+		(*scroll_start) = (*scroll_start) + 1;
+	    *hard = 1;
+	}
+	else if((int)ch == 5) // ctrl + e
+	{
+	    fprintf(err_fp, "debug sender: ctrl e img\n"); fflush(err_fp);
+	    system("feh -d -x -g 960x720 test.png");
+	    *hard = 1;
+	}
+	else if((int)ch ==  18) // ctrl + r
+	{
+	    idx = 0;
+	    while(input_buffer[idx] != '\0') { input_buffer[idx] = '\0'; idx++; } // erase buffer
+	    sem_post(mutex1);
+	    return;
+	}
+	else if(is_normal_character(ch))
+	{
+	    input_buffer[idx++] = ch;
+	    recipients_buffer[r_idx++] = ch;
+	}
+	sem_post(mutex1);
+
+	// fprintf(err_fp, "debug sender: exit semaphore\n"); fflush(err_fp);
+    }
+}
+
 void sender() // sender marker
 {
     // fprintf(err_fp, "sending: %s\n", user_name); fflush(err_fp);
@@ -243,8 +318,20 @@ void sender() // sender marker
 	}
 	else if((int)ch == 10 && idx != 0) // enter
 	{
-	    appendfrontchar(input_buffer, 't');
-	    n = write(sockfd, input_buffer, strlen(input_buffer)); // send data
+	    if(recipients_buffer[0] == '\0') // no recipient list
+	    {
+		appendfrontchar(input_buffer, 't');
+		n = write(sockfd, input_buffer, strlen(input_buffer)); // send input_buffer
+	    }
+	    else
+	    {
+		char* tmp_buffer = (char*)malloc(5000*sizeof(char));
+		fill_zero(tmp_buffer, 5000); tmp_buffer[0] = 'r'; // decision byte
+		append2(tmp_buffer, recipients_buffer); // recipients list
+		appendfrontchar(input_buffer, (char)1); // delimeter
+		append2(tmp_buffer, input_buffer); // message
+		n = write(sockfd, tmp_buffer, strlen(tmp_buffer));
+	    }
 
 	    idx = 0;
 	    while(input_buffer[idx] != '\0') { input_buffer[idx] = '\0'; idx++; } // erase buffer
@@ -274,6 +361,14 @@ void sender() // sender marker
 	{
 	    sem_post(mutex1);
 	    img_sender(); 
+	    idx = 0;
+	    sem_wait(mutex1);
+	}
+	else if((int)ch ==  18) // ctrl + r
+	{
+	    sem_post(mutex1);
+	    recipient(); 
+	    idx = 0;
 	    sem_wait(mutex1);
 	}
 	else if(is_normal_character(ch))
@@ -333,18 +428,26 @@ void receiver() // receiver marker
 	    disconnect_counter++;
 	    if(disconnect_counter > 10) exit(1);
 	}
+	if(buffer[0] == 0) continue;
 
+	if(debug)
+	{
+	    fprintf(err_fp, "received [%d]: ", read_bytes);
+	    for(int i=0; i<20; i++)
+		fprintf(err_fp, "%d(%c) ", (int)buffer[i], (char)buffer[i]);
+	    fprintf(err_fp, "\n"); fflush(err_fp);
+	}
 
 	if(buffer[0] == 'i') // check if incoming message is an image
 	{
 	 receive_image(read_bytes);   
 	 continue;
 	}
-	else if(debug) fprintf(err_fp, "received: %s\n", buffer); fflush(err_fp);
 
 	int i = 1;
 	sem_wait(mutex1);
 	while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++];
+	int tmp = width-2; while(tmp--) output_buffer[idx++] = '-'; // output_buffer[idx++] = '\n';
 	sem_post(mutex1);
 
     }
@@ -404,7 +507,7 @@ void display() // display marker
 	}
 	wattron(input_box, A_REVERSE);
 	mvwaddch(input_box, disp2.y, disp2.x, ' ');
-	wattroff(input_box, A_REVERSE);               // cursor
+	wattroff(input_box, A_REVERSE);		      // cursor
 
 	// display 1 marker (output box)
 	while(output_buffer[idx1] != '\0')
@@ -476,8 +579,8 @@ void login()
 	{
 	    printf("user name not available\n");
 	}
-        else
-        {
+	else
+	{
 	    break;
 	}
     }
@@ -487,10 +590,11 @@ void login()
 void precomp()
 {
     for(int i=0; i<10000; i++) 
+    {
 	output_buffer[i] = '\0';
-
-    for(int i=0; i<10000; i++) 
 	input_buffer[i] = '\0';
+	recipients_buffer[i] = '\0';
+    }
 
     display1 = (char**)malloc(1000*sizeof(char*));
     for(int i=0; i<1000; i++)

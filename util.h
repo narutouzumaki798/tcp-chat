@@ -75,13 +75,9 @@ void copy2(char* a, char* b) // does not reallocate a
     a[i] = '\0';
 }
 
-void append1(char** a, char* b)
+void append1(char** a, char* b) // reallocates a 
 {
-    // printf("debug append1: a=%s b=%s\n", (*a), b);
-
-
     char* ta = (*a);
-
     int n = 0;
     while(ta[n] != '\0')
 	n++;
@@ -101,6 +97,18 @@ void append1(char** a, char* b)
 
     tmp[n+m] = '\0';
     (*a) = tmp;
+}
+void append2(char* a, char* b) // does not reallocate a
+{
+    if(a == NULL) return;
+    if(b == NULL) return;
+
+    int i = 0;
+    while(a[i] != '\0') i++;
+
+    int j = 0;
+    while(b[j] != '\0') { a[i] = b[j]; i++; j++; }
+    a[i] = '\0';
 }
 
 char* to_string1(int x)

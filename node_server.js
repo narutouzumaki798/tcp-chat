@@ -12,7 +12,6 @@ var img_size = 0;
 var read_bytes = 0;
 var sent_bytes = 0;
 
-
 function exists(a)
 {
     console.log("exists:");
@@ -36,7 +35,7 @@ function img_sendall(socket)
 {
     // a = 0, b = 1024;
     // while(a < img.length)
-    // {	
+    // {
     // 	socket.write(img.slice(a, b));
     // 	a = a + 1024;
     // 	b = b + 1024;
@@ -51,9 +50,9 @@ function img_sendall(socket)
 	else sender = sock_map[socket._handle.fd];
 
 	// sockets[user_names[i]].once("drain", function(){
-	//     sockets[user_names[i]].write("[img] " + sender + ": test.png\n\n"); 
+	//     sockets[user_names[i]].write("[img] " + sender + ": test.png\n\n");
 	// });
-	sockets[user_names[i]].write("t[img] " + sender + ": test.png\n\n"); 
+	sockets[user_names[i]].write("t[img] " + sender + ": test.png\n\n");
 	console.log("img: sending " + user_names[i]);
     }
 }
@@ -113,9 +112,9 @@ server.on("connection", function(socket){
 		for(i=0; i<user_names.length; i++) // sending joined message
 		{
 		    if(sock_map[fd] == user_names[i])
-			sockets[user_names[i]].write("t     you joined as " + sock_map[fd] + "\n\n");
+			sockets[user_names[i]].write("t     you joined as " + sock_map[fd] + "\n");
 		    else
-			sockets[user_names[i]].write("t     " + sock_map[fd] + " joined\n\n");
+			sockets[user_names[i]].write("t     " + sock_map[fd] + " joined\n");
 		}
 	    }
 	    else
@@ -135,7 +134,7 @@ server.on("connection", function(socket){
 		    sender = "t";
 		    if(sock_map[fd] == user_names[i]) sender = sender + ">> you";
 		    else sender = sender + sock_map[fd];
-		    sockets[user_names[i]].write(sender + ": " + buffer + "\n\n");
+		    sockets[user_names[i]].write(sender + ": " + buffer + "\n");
 		}
 		break;
 
@@ -152,6 +151,12 @@ server.on("connection", function(socket){
 		    img_sendall(socket);
 		}
 		break;
+
+		case 114: // recipient list ache
+		console.log("recipent list ache:");
+		console.log("data: " + buffer);
+		console.log("delimeter: " + buffer.indexOf(1));
+		break;
 		
 	    } // inner switch
 	    break;
@@ -164,7 +169,7 @@ server.on("connection", function(socket){
 	for(i=0; i<user_names.length; i++) // sending disconnected message
 	{
 	    if(sock_map[fd] != user_names[i])
-		sockets[user_names[i]].write("t     " + sock_map[fd] + " disconnected\n\n");
+		sockets[user_names[i]].write("t     " + sock_map[fd] + " disconnected\n");
 	}
 	console.log("end called");
 	console.log("---\n");
