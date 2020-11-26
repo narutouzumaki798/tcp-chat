@@ -153,7 +153,7 @@ void send_image(char* img) // send image marker
     buffer[i] = (img_size & 0x00FF0000)>>16; i++;
     buffer[i] = (img_size & 0x0000FF00)>>8;  i++;
     buffer[i] = (img_size & 0x000000FF); i++;
-    write(sockfd, buffer, i); // size pathate hobe; final i = total length
+    write(sockfd, buffer, i); // age size pathate hobe; final i = total length
 
 
     // image
@@ -167,7 +167,7 @@ void send_image(char* img) // send image marker
     // buffer[7] = '\0';
 
     int sent_bytes = 0;
-    while(sent_bytes < img_size)
+    while(sent_bytes < img_size) // ek bare hoe jacche mone hoe
     {
 	int x = write(sockfd, img_buffer+sent_bytes, img_size-sent_bytes);
 	sent_bytes += x;
@@ -419,7 +419,7 @@ void sender() // sender marker
     }
 }
 
-int getbyte(int start, int idx)
+int getbyte(int start, int idx) // faltu
 {
     int i = start + idx*2; 
     int u = (buffer[i]>=0 && buffer[i]<=9)? (buffer[i]-'0'):(buffer[i] - 'a' + 10);
@@ -436,14 +436,14 @@ void receive_image(int first_read) // receive image marker
     i = 0; while(i < 1000000) img_buffer[i++] = '\0'; // clear buffer
     int img_size = (((int)buffer[1]) << 24) | (((int)buffer[2]) << 16) | (((int)buffer[3]) << 8) | (((int)buffer[4]));
     i = 5; img_idx = 0;
-    while(i < first_read) img_buffer[img_idx++] = buffer[i++]; // image bytes from initial read
+    while(i < first_read) img_buffer[img_idx++] = buffer[i++]; // prothom bare jotota eseche
     read_bytes = first_read - 5;
     if(debug) fprintf(err_fp, "read_bytes=%d  img_size=%d\n", read_bytes, img_size); fflush(err_fp);
     while(read_bytes < img_size)
     {
 	if(debug) fprintf(err_fp, "receiving image: %d / %d bytes\n", read_bytes, img_size); fflush(err_fp);
 	fill_zero(buffer, 1024);
-	int x = read(sockfd, buffer, min(img_size-read_bytes, 1024));
+	int x = read(sockfd, buffer, min(img_size-read_bytes, 1024)); // dorkari jinis
 	i = 0; while(i < x) img_buffer[img_idx++] = buffer[i++];
 	read_bytes += x;
     }
