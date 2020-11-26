@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <netinet/in.h>
 #include <netdb.h> 
 #include <ncurses.h>
@@ -27,7 +28,8 @@ char recipients_buffer[10000];
 // curses
 WINDOW* input_box;
 WINDOW* output_box;
-int corner1x, corner1y, corner2x, corner2y;
+WINDOW* control_box;
+int corner1x, corner1y, corner2x, corner2y, corner3x, corner3y;
 int width, height1, height2; // dimensions of boxes
 struct coord disp1;
 struct coord disp2;
@@ -45,6 +47,7 @@ int pid;
 char* output_buffer; // receiver
 char* input_buffer; // sender
 char** display1;
+int* quit;
 
 
 void* create_shared_memory(size_t size) {
@@ -139,7 +142,7 @@ void send_image(char* img) // send image marker
     buffer[2] = (img_size & 0x00FF0000)>>16;
     buffer[3] = (img_size & 0x0000FF00)>>8;
     buffer[4] = (img_size & 0x000000FF);
-    write(sockfd, buffer, 5);
+    write(sockfd, buffer, 5); // size pathate hobe
 
 
     // image
@@ -214,6 +217,12 @@ void img_sender() // img sender marker
 	    sem_post(mutex1);
 	    return;
 
+	case 27: // ESC
+	    idx = 0;
+	    while(input_buffer[idx] != '\0') { input_buffer[idx] = '\0'; idx++; } // erase buffer
+	    sem_post(mutex1);
+	    return;
+
 	default:
 	   if(is_normal_character(ch))
 		input_buffer[idx++] = ch;
@@ -283,6 +292,12 @@ void recipient() // recipient marker
 	    sem_post(mutex1);
 	    return;
 
+	case 27: // ESC
+	    idx = 0;
+	    while(input_buffer[idx] != '\0') { input_buffer[idx] = '\0'; idx++; } // erase buffer
+	    sem_post(mutex1);
+	    return;
+
 	default:
 	    if(is_normal_character(ch))
 	    {
@@ -342,6 +357,9 @@ void sender() // sender marker
 	    idx = 0;
 	    break;
 
+	case 12: // ctrl + l
+		input_buffer[idx++] = '\n';
+
 	case 16: // ctrl + p
 	    if(debug) fprintf(err_fp, "debug sender: ctrl p --\n"); fflush(err_fp);
 	    if((*scroll_start) > 1)
@@ -375,6 +393,11 @@ void sender() // sender marker
 	    idx = 0;
 	    sem_wait(mutex1);
 	    break;
+
+	case 27: // ESC
+	    *quit = 1;
+	    sem_post(mutex1);
+	    return;
 
 	default:
 	    if(is_normal_character(ch))
@@ -454,6 +477,7 @@ void receiver() // receiver marker
 	sem_wait(mutex1);
 	while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++];
 	int tmp = width-2; while(tmp--) output_buffer[idx++] = '-'; // output_buffer[idx++] = '\n';
+	if(*quit) { sem_post(mutex1); return; }
 	sem_post(mutex1);
 
     }
@@ -461,32 +485,50 @@ void receiver() // receiver marker
 
 
 
+void controls()
+{
+    control_box = newwin(12, 30, corner3y, corner3x);
+    box(control_box, 0, 0); int i = 1;
+    mvwaddstr(control_box, i, 1, "Controls:"); i++;
+    mvwaddstr(control_box, i, 1, "---------"); i++;
+    mvwaddstr(control_box, i, 1, "Enter: send message"); i++;
+    mvwaddstr(control_box, i, 1, "Ctrl+L: insert new line"); i++;
+    mvwaddstr(control_box, i, 1, "Ctrl+P: scroll up"); i++;
+    mvwaddstr(control_box, i, 1, "Ctrl+N: scroll down"); i++;
+    mvwaddstr(control_box, i, 1, "Ctrl+I: select image to send"); i++;
+    mvwaddstr(control_box, i, 1, "Ctrl+E: view received image"); i++;
+    mvwaddstr(control_box, i, 1, "Ctrl+R: recipients list"); i++;
+    mvwaddstr(control_box, i, 1, "ESC: exit"); i++;
 
+    wrefresh(control_box);
+}
 void reset_win(WINDOW* win)
 {
     werase(win);
     box(win, 0, 0);
 }
-
 void hard_reset()
 {
-    // werase(output_box); wrefresh(output_box);
-    // werase(input_box); wrefresh(input_box);
     clear(); refresh();
-    delwin(output_box);
-    delwin(input_box);
+    // werase(input_box);  wrefresh(input_box);
+    // werase(output_box); wrefresh(output_box);
+    delwin(input_box);  delwin(output_box); 
+    delwin(control_box);
+    
     output_box = newwin(height1, width, corner1y, corner1x);
     input_box = newwin(height2, width, corner2y, corner2x);
     box(output_box, 0, 0);
     box(input_box, 0, 0);
+    controls();
 
     *hard = 0;
 }
-
 void display() // display marker
 {
     output_box = newwin(height1, width, corner1y, corner1x);
     input_box = newwin(height2, width, corner2y, corner2x);
+    controls();
+
     box(output_box, 0, 0);
     box(input_box, 0, 0);
 
@@ -506,6 +548,11 @@ void display() // display marker
 	idx2 = 0; disp2.x = 1; disp2.y = 1;
 	while(input_buffer[idx2] != '\0')
 	{
+	    if(input_buffer[idx2] == '\n')
+	    {
+		disp2.x = 1; disp2.y++; idx2++;
+		continue;
+	    }
 	    mvwaddch(input_box, disp2.y, disp2.x, input_buffer[idx2]);
 	    idx2++;
 	    disp2.x++;
@@ -530,7 +577,7 @@ void display() // display marker
 	    disp1.x++;
 	    if(disp1.x == width - 1) { disp1.x = 1; disp1.y++; }
 	}
-
+	if(*quit) { sem_post(mutex1); return; }
 	sem_post(mutex1); // critical end
 
 	reset_win(output_box);
@@ -543,8 +590,6 @@ void display() // display marker
 	    }
 	    i++;
 	}
-	
-	// mvwprintw(output_box, 10, 10, "display: itr=%3d", (itr%1000)); itr++;
 
 	wrefresh(input_box);
 	wrefresh(output_box);
@@ -563,6 +608,7 @@ void curses_init()
   // window parameters
   corner1x = 3; corner1y = 2;
   corner2x = 3; corner2y = 35;
+  corner3x = 75; corner3y = 10;
   height1 = 32; height2 = 8;
   width = 70;
 }
@@ -635,6 +681,7 @@ int main(int argc, char *argv[])
     input_buffer = (char*)create_shared_memory(10000*sizeof(char));
     scroll_start = (int*)create_shared_memory(sizeof(int));
     hard = (int*)create_shared_memory(sizeof(int));
+    quit = (int*)create_shared_memory(sizeof(int));
     precomp();
 
     // sem_t* , whether share b/w process or thread, value
@@ -650,6 +697,7 @@ int main(int argc, char *argv[])
 
     display(); // parent process used to display
 
+    wait(NULL);
     endwin();
     return 0;
 }

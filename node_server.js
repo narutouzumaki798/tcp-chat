@@ -112,9 +112,9 @@ server.on("connection", function(socket){
 		for(i=0; i<user_names.length; i++) // sending joined message
 		{
 		    if(sock_map[fd] == user_names[i])
-			sockets[user_names[i]].write("t     you joined as " + sock_map[fd] + "\n");
+			sockets[user_names[i]].write("t// you joined as " + sock_map[fd] + "\n");
 		    else
-			sockets[user_names[i]].write("t     " + sock_map[fd] + " joined\n");
+			sockets[user_names[i]].write("t// " + sock_map[fd] + " joined\n");
 		}
 	    }
 	    else
@@ -154,8 +154,29 @@ server.on("connection", function(socket){
 
 		case 114: // recipient list ache
 		console.log("recipent list ache:");
-		console.log("data: " + buffer);
-		console.log("delimeter: " + buffer.indexOf(1));
+		console.log("delimeter: " + buffer.indexOf(1)); d = buffer.indexOf(1);
+		data =  String(buffer.slice(d+1)); console.log("text data: " + buffer.slice(d+1));
+		recipients = String(buffer.slice(1, d));
+		recipients = recipients.split(" ");
+		console.log("recipients: " + recipients);
+		i = 0
+		while(i < recipients.length)
+		{
+		    console.log("removing blank: " + typeof(recipients[i]) + "  " + typeof(""));
+		    if(recipients[i] == "")
+			recipients.splice(i, 1);
+		    else i++;
+		} // removing blanks
+
+		console.log("recipients: " + recipients);
+		for(i=0; i<recipients.length; i++)
+		{
+		    if(user_names.indexOf(recipients[i]) == -1) continue;
+		    if(recipients[i] == sock_map[fd]) continue;
+		    sockets[recipients[i]].write("t" + sock_map[fd] + "[to " + String(recipients) + "]: " + data + "\n");
+		}
+		sockets[sock_map[fd]].write("t>> you" + "[to " + String(recipients) +"]: " + data + "\n");
+
 		break;
 		
 	    } // inner switch
@@ -169,8 +190,10 @@ server.on("connection", function(socket){
 	for(i=0; i<user_names.length; i++) // sending disconnected message
 	{
 	    if(sock_map[fd] != user_names[i])
-		sockets[user_names[i]].write("t     " + sock_map[fd] + " disconnected\n");
+		sockets[user_names[i]].write("t// " + sock_map[fd] + " disconnected\n");
 	}
+	r = user_names.indexOf(sock_map[fd]);
+	if(r != -1) user_names.splice(r, 1);
 	console.log("end called");
 	console.log("---\n");
     });
