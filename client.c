@@ -20,6 +20,7 @@
 // network
 char user_name[50];
 unsigned char buffer[10000];
+unsigned char img_buffer[1000000];
 int sockfd, portno, n;
 struct sockaddr_in serv_addr;
 struct hostent *server;
@@ -114,7 +115,6 @@ void send_image(char* img) // send image marker
     FILE* img_fp = fopen(img, "rb");
     if(img_fp == NULL) return; // image does not exist
 
-    unsigned char img_buffer[1000000];
     int i = 0; while(i < 1000000) img_buffer[i++] = '\0'; // clear buffer
 
     i = 0; while(fread(img_buffer+i, 1, 1, img_fp)) i++; // read image
@@ -136,13 +136,24 @@ void send_image(char* img) // send image marker
     }
 
     // image header
-    int img_size = N;
-    buffer[0] = 'i';
-    buffer[1] = (img_size & 0xFF000000)>>24;
-    buffer[2] = (img_size & 0x00FF0000)>>16;
-    buffer[3] = (img_size & 0x0000FF00)>>8;
-    buffer[4] = (img_size & 0x000000FF);
-    write(sockfd, buffer, 5); // size pathate hobe
+    int img_size = N; fill_zero(buffer, 5000);
+    if(recipients_buffer[0] == '\0')
+    {
+	buffer[0] = 'i'; i = 1;
+    }
+    else
+    {
+	buffer[0] = 's';
+	append2(buffer, recipients_buffer);
+	i = strlen(recipients_buffer) + 1;
+	buffer[i] = (char)1; // delimeter
+	i++;
+    }
+    buffer[i] = (img_size & 0xFF000000)>>24; i++;
+    buffer[i] = (img_size & 0x00FF0000)>>16; i++;
+    buffer[i] = (img_size & 0x0000FF00)>>8;  i++;
+    buffer[i] = (img_size & 0x000000FF); i++;
+    write(sockfd, buffer, i); // size pathate hobe; final i = total length
 
 
     // image
@@ -421,7 +432,7 @@ int getbyte(int start, int idx)
 void receive_image(int first_read) // receive image marker
 {
     if(debug) fprintf(err_fp, "debug receive image: first_read: %d\n", first_read); fflush(err_fp);
-    int i, img_idx = 0, read_bytes = 0; unsigned char img_buffer[1000000];
+    int i, img_idx = 0, read_bytes = 0;
     i = 0; while(i < 1000000) img_buffer[i++] = '\0'; // clear buffer
     int img_size = (((int)buffer[1]) << 24) | (((int)buffer[2]) << 16) | (((int)buffer[3]) << 8) | (((int)buffer[4]));
     i = 5; img_idx = 0;

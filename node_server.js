@@ -11,39 +11,27 @@ var img;
 var img_size = 0;
 var read_bytes = 0;
 var sent_bytes = 0;
+var recipients = []
 
-function exists(a)
+function img_send_some(socket)
 {
-    console.log("exists:");
-    console.log("buffer: " + typeof(a));
-    for(i=0; i<user_names.length; i++)
+    u = sock_map[socket._handle.fd];
+    for(i = 0; i<recipients.length; i++)
     {
-    	process.stdout.write(" array" + i + ": " + user_names[i] + " : " + typeof(user_names[i]));
+	if(user_names.indexOf(recipients[i]) == -1) continue;
+	if(recipients[i] == u) continue;
+	sockets[recipients[i]].write(img);
+	sockets[recipients[i]].write("t[img] " + u + "[to " + String(recipients) + "]: test.png\n");
     }
-    console.log("\n---\n");
+    socket.write("t[img] " + "you" + "[to " + String(recipients) + "]: test.png\n");
 }
-function sleep(ms)
+function img_send_all(socket)
 {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-function setCharAt(str,index,chr) {
-    if(index > str.length-1) return str;
-    return str.substring(0,index) + chr + str.substring(index+1);
-}
-
-function img_sendall(socket)
-{
-    // a = 0, b = 1024;
-    // while(a < img.length)
-    // {
-    // 	socket.write(img.slice(a, b));
-    // 	a = a + 1024;
-    // 	b = b + 1024;
-    // 	console.log("sending image: " + a + " bytes");
-    // }
     for(i = 0; i<user_names.length; i++)
     {
-	sockets[user_names[i]].write(img);
+	if(sock_map[socket._handle.fd] != user_names[i])
+	sockets[user_names[i]].write(img); // nije ke pathate hobe na
+
 	sender = "";
 	if(sock_map[socket._handle.fd] == user_names[i])
 	    sender = ">> you";
@@ -55,6 +43,24 @@ function img_sendall(socket)
 	sockets[user_names[i]].write("t[img] " + sender + ": test.png\n\n");
 	console.log("img: sending " + user_names[i]);
     }
+}
+function sleep(ms)
+{
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+function setCharAt(str,index,chr) {
+    if(index > str.length-1) return str;
+    return str.substring(0,index) + chr + str.substring(index+1);
+}
+function exists(a)
+{
+    console.log("exists:");
+    console.log("buffer: " + typeof(a));
+    for(i=0; i<user_names.length; i++)
+    {
+    	process.stdout.write(" array" + i + ": " + user_names[i] + " : " + typeof(user_names[i]));
+    }
+    console.log("\n---\n");
 }
 
 server.on("connection", function(socket){
@@ -82,7 +88,9 @@ server.on("connection", function(socket){
 
 		read_bytes = 0;
 		img_size = 0;
-		img_sendall(socket);
+		if(recipients.length == 0)
+		img_send_all(socket);
+		else img_send_some(socket);
 	    }
 	    return;
 	}
@@ -148,8 +156,9 @@ server.on("connection", function(socket){
 		    console.log("img ekbarei ese geche: " + read_bytes + " / " + img_size + " bytes");
 		    read_bytes = 0;
 		    img_size = 0;
-		    img_sendall(socket);
+		    img_send_all(socket);
 		}
+		recipients.length = 0;
 		break;
 
 		case 114: // recipient list ache
@@ -162,7 +171,7 @@ server.on("connection", function(socket){
 		i = 0
 		while(i < recipients.length)
 		{
-		    console.log("removing blank: " + typeof(recipients[i]) + "  " + typeof(""));
+		    // console.log("removing blank: " + typeof(recipients[i]) + "  " + typeof(""));
 		    if(recipients[i] == "")
 			recipients.splice(i, 1);
 		    else i++;
@@ -176,7 +185,36 @@ server.on("connection", function(socket){
 		    sockets[recipients[i]].write("t" + sock_map[fd] + "[to " + String(recipients) + "]: " + data + "\n");
 		}
 		sockets[sock_map[fd]].write("t>> you" + "[to " + String(recipients) +"]: " + data + "\n");
+		break;
 
+		case 115: // recipient list ache + image
+		console.log("recipent list ar image ache:");
+		console.log("delimeter: " + buffer.indexOf(1)); d = buffer.indexOf(1);
+
+		recipients = String(buffer.slice(1, d));
+		recipients = recipients.split(" ");
+		console.log("recipients: " + recipients);
+		i = 0
+		while(i < recipients.length)
+		{
+		    // console.log("removing blank: " + typeof(recipients[i]) + "  " + typeof(""));
+		    if(recipients[i] == "")
+			recipients.splice(i, 1);
+		    else i++;
+		} // removing blanks
+
+		img_size = (buffer[d+1] << 24) | (buffer[d+2] << 16) | (buffer[d+3] << 8) | (buffer[d+4]);
+		console.log("image size: " + img_size);
+		img = buffer.slice(d); img[0] = 105; // prothom byte e i bosate hobe
+		console.log("img surute: "); console.log(img.slice(0, 5));
+		read_bytes = buffer.length - (d+5);
+		if(read_bytes >= img_size)
+		{
+		    console.log("img ekbarei ese geche: " + read_bytes + " / " + img_size + " bytes");
+		    read_bytes = 0;
+		    img_size = 0;
+		    img_send_some(socket);
+		}
 		break;
 		
 	    } // inner switch
