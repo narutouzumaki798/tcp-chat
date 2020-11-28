@@ -151,6 +151,15 @@ int to_int1(char* a)
     return ans;
 }
 
+int valid(char* a) // valid password
+{
+    if(a == NULL) return 0;
+    int n = 0;
+    while(a[n] != '\0') n++;
+    if(n < 3) return 0;
+    return 1;
+}
+
 struct coord{
     int x;
     int y;

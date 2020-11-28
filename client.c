@@ -19,6 +19,7 @@
 
 // network
 char user_name[50];
+char password[50];
 unsigned char buffer[10000];
 unsigned char img_buffer[1000000];
 int sockfd, portno, n;
@@ -49,6 +50,7 @@ char* output_buffer; // receiver
 char* input_buffer; // sender
 char** display1;
 int* quit;
+char* users_list;
 
 
 void* create_shared_memory(size_t size) {
@@ -457,7 +459,7 @@ void receiver() // receiver marker
 {
     // fprintf(err_fp, "debug reciver 1\n"); fflush(err_fp);
 
-    int idx = 0, disconnect_counter = 0;
+    int idx = 0, disconnect_counter = 0, i;
     while(1)
     {
 	fill_zero(buffer, 1024); // reset buffer
@@ -478,18 +480,22 @@ void receiver() // receiver marker
 	    fprintf(err_fp, "\n"); fflush(err_fp);
 	}
 
-	if(buffer[0] == 'i') // check if incoming message is an image
+	switch(buffer[0])
 	{
-	 receive_image(read_bytes);   
-	 continue;
-	}
+	case 'i': // image eseche
+	    receive_image(read_bytes);   
+	    break;
 
-	int i = 1;
-	sem_wait(mutex1);
-	while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++];
-	int tmp = width-2; while(tmp--) output_buffer[idx++] = '-'; // output_buffer[idx++] = '\n';
+	case 't': // text eseche
+	    i = 1;
+	    sem_wait(mutex1);
+	    while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++];
+	    int tmp = width-2; while(tmp--) output_buffer[idx++] = '-'; // output_buffer[idx++] = '\n';
+	    sem_post(mutex1);
+	    break;
+
+	} // switch
 	if(*quit) { sem_post(mutex1); return; }
-	sem_post(mutex1);
 
     }
 }
@@ -631,24 +637,51 @@ void login()
     while(1)
     {
 	printf(">> ");
-	scanf("%s", user_name);
-	write(sockfd, user_name, strlen(user_name));
-	read(sockfd, buffer, 1024);
+	fill_zero(user_name, 50); scanf("%s", user_name);
 	if(is(user_name, "you"))
 	{
 	    printf("reseved word\n");
+	    continue;
 	}
-	else if(is(buffer, "no"))
+	else if(!valid(user_name))
 	{
-	    printf("user name not available\n");
+	    printf("invalid username\n");
+	    continue;
 	}
-	else
+	break;
+    }
+    write(sockfd, user_name, strlen(user_name)); // send to server [write 1]
+    fill_zero(buffer, 1024); read(sockfd, buffer, 2); // [read 1]
+    if(is(buffer, "no")) // old user name
+    {
+	printf("Enter Password: ");
+	fill_zero(password, 50); scanf("%s", password);
+	write(sockfd, password, strlen(password)); // [write 2]
+	fill_zero(buffer, 1024); read(sockfd, buffer, 2); // [read 2]
+	if(!is(buffer, "ok"))
 	{
-	    break;
+	    printf("Wrong Password\n\n");
+	    exit(1);
 	}
     }
-
+    else // new user name
+    {
+	fill_zero(password, 50);
+	while(!valid(password))
+	{
+	    printf("Create Password: ");
+	    fill_zero(password, 50); scanf("%s", password);
+	}
+	write(sockfd, password, strlen(password)); // [write 2]
+	fill_zero(buffer, 1024); read(sockfd, buffer, 2); // faltu [read 2]
+    }
+    if(debug) fprintf(err_fp, "asking for users list\n"); fflush(err_fp);
+    write(sockfd, "u", 1); // asking for users list
+    read(sockfd, users_list, 10000);
+    write(sockfd, "thik ache", 9); // faltu
+    if(debug) fprintf(err_fp, "debug login users_list: %s\n", users_list); fflush(err_fp);
 }
+
 
 void precomp()
 {
@@ -657,6 +690,7 @@ void precomp()
 	output_buffer[i] = '\0';
 	input_buffer[i] = '\0';
 	recipients_buffer[i] = '\0';
+	users_list[i] = '\0';
     }
 
     display1 = (char**)malloc(1000*sizeof(char*));
@@ -675,6 +709,9 @@ int main(int argc, char *argv[])
 {
     err_fp = fopen("debug.txt", "w");
     setup_connection(argc, argv);
+
+    users_list = (char*)create_shared_memory(10000*sizeof(char)); // eta age lagbe
+    fill_zero(users_list, 10000);
     login();
 
     // while(1)
