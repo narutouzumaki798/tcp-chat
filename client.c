@@ -461,12 +461,12 @@ void receiver() // receiver marker
 {
     // fprintf(err_fp, "debug reciver 1\n"); fflush(err_fp);
 
-    int idx = 0, disconnect_counter = 0, i, size1;
+    int idx = 0, disconnect_counter = 0, i, size1, psize;
     char* tmp;
     while(1)
     {
 	fill_zero(buffer, 1024); // reset buffer
-	int read_bytes = read(sockfd, buffer, 1024);
+	int read_bytes = read(sockfd, buffer, 5);
 
 	if(read_bytes == 0)
 	{
@@ -490,34 +490,47 @@ void receiver() // receiver marker
 	    break;
 
 	case 't': // text eseche
-	    i = 1;
+	    i = 0;
 	    sem_wait(mutex1); // critical start
-	    while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++];
-	    size1 = width-2; while(size1--) output_buffer[idx++] = '-'; // output_buffer[idx++] = '\n';
+	    psize = (buffer[1] << 24) | (buffer[2] << 16) | (buffer[3] << 8) | buffer[4]; // calculate payload size
+	    fill_zero(buffer, 1024); // reset buffer
+	    read_bytes = read(sockfd, buffer, psize); // read required bytes
+
+	    while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++]; // copy to output buffer
+	    size1 = width-2; while(size1--) output_buffer[idx++] = '-'; //  ------- line
 	    sem_post(mutex1); // critical end
 	    break;
 
 	case 'c': // user connected
-	    fprintf(err_fp, "debug user connected\n"); fflush(err_fp);
-	    i = 1;
+	    if(debug) fprintf(err_fp, "debug user connected\n"); fflush(err_fp);
+	    i = 0;
 	    sem_wait(mutex1); // critical start
-	    tmp = get_word(buffer+4);
+	    psize = (buffer[1] << 24) | (buffer[2] << 16) | (buffer[3] << 8) | buffer[4]; // calculate payload size
+	    fill_zero(buffer, 1024); // reset buffer
+	    read_bytes = read(sockfd, buffer, psize); // read required bytes
+
+	    tmp = get_word(buffer+3);
 	    add_user(users_list, tmp);
 	    while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++];
-	    size1 = width-2; while(size1--) output_buffer[idx++] = '-'; // output_buffer[idx++] = '\n';
+	    size1 = width-2; while(size1--) output_buffer[idx++] = '-'; //  ------- line
 	    *hard = 1;
 	    sem_post(mutex1); // critical end
 	    free(tmp);
 	    break;
 
 	case 'd': // user disconnected
-	    fprintf(err_fp, "debug user disconnected\n"); fflush(err_fp);
-	    i = 1;
+	    if(1) fprintf(err_fp, "debug user disconnected\n"); fflush(err_fp);
+	    i = 0;
 	    sem_wait(mutex1); // critical start
-	    tmp = get_word(buffer+4);
+	    psize = (buffer[1] << 24) | (buffer[2] << 16) | (buffer[3] << 8) | buffer[4]; // calculate payload size
+	    fill_zero(buffer, 1024); // reset buffer
+	    read_bytes = read(sockfd, buffer, psize); // read required bytes
+	    fprintf(err_fp, "debug disconnect 2nd read: %s\n", buffer); fflush(err_fp);
+
+	    tmp = get_word(buffer+3);
 	    remove_user(users_list, tmp);
 	    while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++];
-	    size1 = width-2; while(size1--) output_buffer[idx++] = '-'; // output_buffer[idx++] = '\n';
+	    size1 = width-2; while(size1--) output_buffer[idx++] = '-'; //  ------- line
 	    *hard = 1;
 	    sem_post(mutex1); // critcal end
 	    free(tmp);

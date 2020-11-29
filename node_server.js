@@ -19,12 +19,37 @@ function img_send_some(socket)
     u = sock_map[socket._handle.fd];
     for(i = 0; i<recipients.length; i++)
     {
+	sender = "";
 	if(active_users.indexOf(recipients[i]) == -1) continue;
 	if(recipients[i] == u) continue;
+
 	sockets[recipients[i]].write(img);
-	sockets[recipients[i]].write("t[img] " + u + "[to " + String(recipients) + "]: test.png\n");
+	sender = u;
+
+	payload = ".....[img] " + sender + "[to " + String(recipients) + "]: test.png\n";
+	frame = Buffer.from(payload, 'utf8');
+	psize = frame.length - 5;
+
+	frame[0] = 116;
+	frame[1] = (psize & 0xFF000000)>>24;
+	frame[2] = (psize & 0x00FF0000)>>16;
+	frame[3] = (psize & 0x0000FF00)>>8;
+	frame[4] = (psize & 0x000000FF);
+
+	sockets[recipients[i]].write(frame);
     }
-    socket.write("t[img] " + "you" + "[to " + String(recipients) + "]: test.png\n");
+    // sending sender
+    payload = ".....[img] " + "you" + "[to " + String(recipients) + "]: test.png\n";
+    frame = Buffer.from(payload, 'utf8');
+    psize = frame.length - 5;
+
+    frame[0] = 116;
+    frame[1] = (psize & 0xFF000000)>>24;
+    frame[2] = (psize & 0x00FF0000)>>16;
+    frame[3] = (psize & 0x0000FF00)>>8;
+    frame[4] = (psize & 0x000000FF);
+
+    socket.write(frame);
 }
 function img_send_all(socket)
 {
@@ -34,11 +59,20 @@ function img_send_all(socket)
 	sockets[active_users[i]].write(img); // nije ke pathate hobe na
 
 	sender = "";
-	if(sock_map[socket._handle.fd] == active_users[i])
-	    sender = ">> you";
+	if(sock_map[socket._handle.fd] == active_users[i]) sender = ">> you";
 	else sender = sock_map[socket._handle.fd];
 
-	sockets[active_users[i]].write("t[img] " + sender + ": test.png\n");
+	payload = ".....[img] " + sender + ": test.png\n";
+	frame = Buffer.from(payload, 'utf8');
+	psize = frame.length - 5;
+
+	frame[0] = 116;
+	frame[1] = (psize & 0xFF000000)>>24;
+	frame[2] = (psize & 0x00FF0000)>>16;
+	frame[3] = (psize & 0x0000FF00)>>8;
+	frame[4] = (psize & 0x000000FF);
+
+	sockets[active_users[i]].write(frame);
 	console.log("img: sending " + active_users[i]);
     }
 }
@@ -135,10 +169,21 @@ server.on("connection", function(socket){
 	    active_users.push(sock_map[fd]); // er por onnno client der data jabe
 	    for(i=0; i<active_users.length; i++) // sending joined message
 	    {
-	        if(sock_map[fd] == active_users[i])
-	    	sockets[active_users[i]].write("t// you joined as " + sock_map[fd] + "\n");
-	        else
-	    	sockets[active_users[i]].write("c// " + sock_map[fd] + " joined\n");
+		payload = "";
+	        if(sock_map[fd] == active_users[i]) { payload = "// you joined as " + sock_map[fd] + "\n"; }
+	        else { payload = "// " + sock_map[fd] + " joined\n"; }
+		payload = "....." + payload;
+		frame = Buffer.from(payload, 'utf8');
+		psize = frame.length - 5;
+
+		if(sock_map[fd] == active_users[i]) frame[0] = 116;
+		else frame[0] = 99;
+		frame[1] = (psize & 0xFF000000)>>24;
+		frame[2] = (psize & 0x00FF0000)>>16;
+		frame[3] = (psize & 0x0000FF00)>>8;
+		frame[4] = (psize & 0x000000FF);
+
+	    	sockets[active_users[i]].write(frame);
 	    }
 	    phase[fd] = 5;
 	    break;
@@ -152,10 +197,24 @@ server.on("connection", function(socket){
 		buffer = buffer.slice(1);
 		for(i=0; i<active_users.length; i++)
 		{
-		    sender = "t";
-		    if(sock_map[fd] == active_users[i]) sender = sender + ">> you";
-		    else sender = sender + sock_map[fd];
-		    sockets[active_users[i]].write(sender + ": " + buffer + "\n");
+		    sender = "";
+		    if(sock_map[fd] == active_users[i]) sender = ">> you";
+		    else sender = sock_map[fd];
+
+		    payload = "....." + sender + ": " + buffer + "\n";
+		    frame = Buffer.from(payload, 'utf8');
+		    psize = frame.length - 5;
+
+		    frame[0] = 116;
+		    frame[1] = (psize & 0xFF000000)>>24;
+		    frame[2] = (psize & 0x00FF0000)>>16;
+		    frame[3] = (psize & 0x0000FF00)>>8;
+		    frame[4] = (psize & 0x000000FF);
+
+		    console.log("payload: " + payload);
+		    console.log(frame);
+		    console.log(psize);
+		    sockets[active_users[i]].write(frame);
 		}
 		break;
 
@@ -180,7 +239,7 @@ server.on("connection", function(socket){
 		data =  String(buffer.slice(d+1)); console.log("text data: " + buffer.slice(d+1));
 		recipients = String(buffer.slice(1, d));
 		recipients = recipients.split(" ");
-		console.log("recipients: " + recipients);
+
 		i = 0
 		while(i < recipients.length)
 		{
@@ -193,11 +252,35 @@ server.on("connection", function(socket){
 		console.log("recipients: " + recipients);
 		for(i=0; i<recipients.length; i++)
 		{
+		    sender = "";
 		    if(active_users.indexOf(recipients[i]) == -1) continue;
 		    if(recipients[i] == sock_map[fd]) continue;
-		    sockets[recipients[i]].write("t" + sock_map[fd] + "[to " + String(recipients) + "]: " + data + "\n");
+		    sender = sock_map[fd];
+
+		    payload = "....." + sender + "[to " + String(recipients) + "]: " + data + "\n";
+		    frame = Buffer.from(payload, 'utf8');
+		    psize = frame.length - 5;
+
+		    frame[0] = 116;
+		    frame[1] = (psize & 0xFF000000)>>24;
+		    frame[2] = (psize & 0x00FF0000)>>16;
+		    frame[3] = (psize & 0x0000FF00)>>8;
+		    frame[4] = (psize & 0x000000FF);
+
+		    sockets[recipients[i]].write(frame);
 		}
-		sockets[sock_map[fd]].write("t>> you" + "[to " + String(recipients) +"]: " + data + "\n");
+		// sending sender
+		payload = "....." + ">> you" + "[to " + String(recipients) + "]: " + data + "\n";
+		frame = Buffer.from(payload, 'utf8');
+		psize = frame.length - 5;
+
+		frame[0] = 116;
+		frame[1] = (psize & 0xFF000000)>>24;
+		frame[2] = (psize & 0x00FF0000)>>16;
+		frame[3] = (psize & 0x0000FF00)>>8;
+		frame[4] = (psize & 0x000000FF);
+
+		socket.write(frame);
 		break;
 
 		case 115: // [s] recipient list ache + image
@@ -236,8 +319,18 @@ server.on("connection", function(socket){
 		{
 		    for(i=0; i<active_users.length; i++) // sending disconnected message
 		    {
-			if(sock_map[fd] != active_users[i])
-			    sockets[active_users[i]].write("d// " + sock_map[fd] + " disconnected\n");
+			if(sock_map[fd] == active_users[i]) continue;
+			payload = ".....// " + sock_map[fd] + " disconnected\n";
+			frame = Buffer.from(payload, 'utf8');
+			psize = frame.length - 5;
+
+			frame[0] = 100;
+			frame[1] = (psize & 0xFF000000)>>24;
+			frame[2] = (psize & 0x00FF0000)>>16;
+			frame[3] = (psize & 0x0000FF00)>>8;
+			frame[4] = (psize & 0x000000FF);
+
+			sockets[active_users[i]].write(frame);
 		    }
 		    r = active_users.indexOf(sock_map[fd]);
 		    if(r != -1) active_users.splice(r, 1);
@@ -269,5 +362,12 @@ server.listen(8001, function(){
 });
 
 
-
+// test
+// ----------------
+// text
+// image
+// text + recipient x 2
+// image + recipient x 2
+// connect
+// disconnect
 
