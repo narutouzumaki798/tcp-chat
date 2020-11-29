@@ -10,6 +10,7 @@
 #include <ncurses.h>
 #include <sys/mman.h>
 #include <semaphore.h>
+#include <signal.h>
 
 
 #include "util.h"
@@ -31,7 +32,8 @@ char recipients_buffer[10000];
 WINDOW* input_box;
 WINDOW* output_box;
 WINDOW* control_box;
-int corner1x, corner1y, corner2x, corner2y, corner3x, corner3y;
+WINDOW* users_box;
+int corner1x, corner1y, corner2x, corner2y, corner3x, corner3y, corner4x, corner4y;
 int width, height1, height2; // dimensions of boxes
 struct coord disp1;
 struct coord disp2;
@@ -332,7 +334,6 @@ void sender() // sender marker
     while(1) 
     {
 	// sleep(5);
-	// string tmp = "abcd";
 	// fprintf(err_fp, "sending: %s\n", tmp.c_str()); fflush(err_fp);
 	// n = write(sockfd, tmp.c_str(), (int)tmp.size());
 	char ch = getch();
@@ -372,6 +373,7 @@ void sender() // sender marker
 
 	case 12: // ctrl + l
 		input_buffer[idx++] = '\n';
+		break;
 
 	case 16: // ctrl + p
 	    if(debug) fprintf(err_fp, "debug sender: ctrl p --\n"); fflush(err_fp);
@@ -459,7 +461,8 @@ void receiver() // receiver marker
 {
     // fprintf(err_fp, "debug reciver 1\n"); fflush(err_fp);
 
-    int idx = 0, disconnect_counter = 0, i;
+    int idx = 0, disconnect_counter = 0, i, size1;
+    char* tmp;
     while(1)
     {
 	fill_zero(buffer, 1024); // reset buffer
@@ -488,14 +491,40 @@ void receiver() // receiver marker
 
 	case 't': // text eseche
 	    i = 1;
-	    sem_wait(mutex1);
+	    sem_wait(mutex1); // critical start
 	    while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++];
-	    int tmp = width-2; while(tmp--) output_buffer[idx++] = '-'; // output_buffer[idx++] = '\n';
-	    sem_post(mutex1);
+	    size1 = width-2; while(size1--) output_buffer[idx++] = '-'; // output_buffer[idx++] = '\n';
+	    sem_post(mutex1); // critical end
+	    break;
+
+	case 'c': // user connected
+	    fprintf(err_fp, "debug user connected\n"); fflush(err_fp);
+	    i = 1;
+	    sem_wait(mutex1); // critical start
+	    tmp = get_word(buffer+4);
+	    add_user(users_list, tmp);
+	    while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++];
+	    size1 = width-2; while(size1--) output_buffer[idx++] = '-'; // output_buffer[idx++] = '\n';
+	    *hard = 1;
+	    sem_post(mutex1); // critical end
+	    free(tmp);
+	    break;
+
+	case 'd': // user disconnected
+	    fprintf(err_fp, "debug user disconnected\n"); fflush(err_fp);
+	    i = 1;
+	    sem_wait(mutex1); // critical start
+	    tmp = get_word(buffer+4);
+	    remove_user(users_list, tmp);
+	    while(buffer[i] != '\0') output_buffer[idx++] = buffer[i++];
+	    size1 = width-2; while(size1--) output_buffer[idx++] = '-'; // output_buffer[idx++] = '\n';
+	    *hard = 1;
+	    sem_post(mutex1); // critcal end
+	    free(tmp);
 	    break;
 
 	} // switch
-	if(*quit) { sem_post(mutex1); return; }
+	if(*quit) { return; }
 
     }
 }
@@ -504,7 +533,7 @@ void receiver() // receiver marker
 
 void controls()
 {
-    control_box = newwin(12, 30, corner3y, corner3x);
+    control_box = newwin(12, 31, corner3y, corner3x);
     box(control_box, 0, 0); int i = 1;
     mvwaddstr(control_box, i, 1, "Controls:"); i++;
     mvwaddstr(control_box, i, 1, "---------"); i++;
@@ -512,12 +541,35 @@ void controls()
     mvwaddstr(control_box, i, 1, "Ctrl+L: insert new line"); i++;
     mvwaddstr(control_box, i, 1, "Ctrl+P: scroll up"); i++;
     mvwaddstr(control_box, i, 1, "Ctrl+N: scroll down"); i++;
-    mvwaddstr(control_box, i, 1, "Ctrl+I: select image to send"); i++;
+    mvwaddstr(control_box, i, 1, "Ctrl+I: image address"); i++;
     mvwaddstr(control_box, i, 1, "Ctrl+E: view received image"); i++;
     mvwaddstr(control_box, i, 1, "Ctrl+R: recipients list"); i++;
     mvwaddstr(control_box, i, 1, "ESC: exit"); i++;
 
     wrefresh(control_box);
+}
+void users()
+{
+    fprintf(err_fp, "debug users users_list: %s\n", users_list); fflush(err_fp);
+    int users_width = 31;
+    users_box = newwin(29, users_width, corner4y, corner4x);
+    box(users_box, 0, 0);
+    mvwaddstr(users_box, 1, 1, "users: ");
+    mvwaddstr(users_box, 2, 1, "----------");
+    int i = 0; int curr_x = 1, curr_y = 3;
+    while(users_list[i] != '\0')
+    {
+	if(users_list[i] == '\n')
+	{
+	    curr_y++; curr_x = 1;
+	    i++;
+	    continue;
+	}
+	mvwaddch(users_box, curr_y, curr_x, users_list[i]);
+	curr_x++; if(curr_x > users_width - 2) { curr_x = 1; curr_y++; }
+	i++;
+    }
+    wrefresh(users_box);
 }
 void reset_win(WINDOW* win)
 {
@@ -530,14 +582,14 @@ void hard_reset()
     // werase(input_box);  wrefresh(input_box);
     // werase(output_box); wrefresh(output_box);
     delwin(input_box);  delwin(output_box); 
-    delwin(control_box);
+    delwin(control_box); delwin(users_box);
     
     output_box = newwin(height1, width, corner1y, corner1x);
     input_box = newwin(height2, width, corner2y, corner2x);
     box(output_box, 0, 0);
     box(input_box, 0, 0);
     controls();
-
+    users();
     *hard = 0;
 }
 void display() // display marker
@@ -545,6 +597,7 @@ void display() // display marker
     output_box = newwin(height1, width, corner1y, corner1x);
     input_box = newwin(height2, width, corner2y, corner2x);
     controls();
+    users();
 
     box(output_box, 0, 0);
     box(input_box, 0, 0);
@@ -625,8 +678,9 @@ void curses_init()
   // window parameters
   corner1x = 3; corner1y = 2;
   corner2x = 3; corner2y = 35;
-  corner3x = 75; corner3y = 10;
-  height1 = 32; height2 = 8;
+  corner3x = 74; corner3y = 31;
+  corner4x = 74; corner4y = 2;
+  height1 = 33; height2 = 8;
   width = 70;
 }
 
@@ -679,7 +733,7 @@ void login()
     write(sockfd, "u", 1); // asking for users list
     read(sockfd, users_list, 10000);
     write(sockfd, "thik ache", 9); // faltu
-    if(debug) fprintf(err_fp, "debug login users_list: %s\n", users_list); fflush(err_fp);
+    if(1) fprintf(err_fp, "debug login users_list: %s\n", users_list); fflush(err_fp);
 }
 
 
@@ -690,7 +744,6 @@ void precomp()
 	output_buffer[i] = '\0';
 	input_buffer[i] = '\0';
 	recipients_buffer[i] = '\0';
-	users_list[i] = '\0';
     }
 
     display1 = (char**)malloc(1000*sizeof(char*));
@@ -704,11 +757,18 @@ void precomp()
     *hard = 0;
 }
 
+void signalhandler()
+{
+    if(debug) fprintf(err_fp, "ctrl c diye bondo hobe na\n"); fflush(err_fp);
+}
 
 int main(int argc, char *argv[])
 {
     err_fp = fopen("debug.txt", "w");
     setup_connection(argc, argv);
+
+    signal(SIGINT, signalhandler);
+    signal(SIGTSTP, signalhandler);
 
     users_list = (char*)create_shared_memory(10000*sizeof(char)); // eta age lagbe
     fill_zero(users_list, 10000);
@@ -746,6 +806,7 @@ int main(int argc, char *argv[])
     display(); // parent process used to display
 
     wait(NULL);
+    write(sockfd, "x", 1);
     endwin();
     return 0;
 }

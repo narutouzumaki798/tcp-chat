@@ -196,6 +196,68 @@ int min(int a, int b)
     return b;
 }
 
+char* get_word(char* a)
+{
+    int i = 0, n = 0;
+    while(a[n] != ' ') n++;
+    char* ans = (char*)malloc((n+1)*sizeof(char));
+    for(int i=0; i<n; i++) ans[i] = a[i];
+    ans[n] = '\0';
+    return ans;
+}
+
+int is_user(char* a, int n, char* b, int m)
+{
+    if(n != m) return 0;
+    for(int i=0; i<n; i++)
+	if(a[i] != b[i]) return 0;
+    return 1;
+}
+
+void remove_user(char* a, char* b)
+{
+    int n = 0;
+    while(a[n] != '\0') n++;
+    int m = 0;
+    while(b[m] != '\0') m++; 
+
+    int start = 0; int from = -1, to = -1;
+    for(int i=0; i<n; i++)
+    {
+	if(a[i] == '\n')
+	{
+	    if(is_user(a+start, i-start, b, m))
+	    {
+		from = i+1;
+		to = start;
+		break;
+	    }
+	    start = i+1;
+	}
+    }
+    if(from == -1) return; // user name not found
+
+    // removing
+    while(a[from] != '\0')
+    {
+	a[to] = a[from];
+	to++; from++;
+    }
+    while(a[to] != '\0')
+    {
+	a[to] = '\0';
+	to++;
+    }
+}
+
+void add_user(char* a, char* b)
+{
+    int i = 0;
+    while(a[i] != '\0') i++;
+    int j = 0;
+    while(b[j] != '\0') { a[i] = b[j]; i++; j++; }
+    a[i] = '\n';
+}
 
 
 

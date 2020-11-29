@@ -1,5 +1,4 @@
 var net = require("net")
-
 var server = net.createServer();
 
 var user_names = [];
@@ -39,32 +38,10 @@ function img_send_all(socket)
 	    sender = ">> you";
 	else sender = sock_map[socket._handle.fd];
 
-	// sockets[active_users[i]].once("drain", function(){
-	//     sockets[active_users[i]].write("[img] " + sender + ": test.png\n\n");
-	// });
-	sockets[active_users[i]].write("t[img] " + sender + ": test.png\n\n");
+	sockets[active_users[i]].write("t[img] " + sender + ": test.png\n");
 	console.log("img: sending " + active_users[i]);
     }
 }
-function sleep(ms)
-{
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-function setCharAt(str,index,chr) {
-    if(index > str.length-1) return str;
-    return str.substring(0,index) + chr + str.substring(index+1);
-}
-function exists(a)
-{
-    console.log("exists:");
-    console.log("buffer: " + typeof(a));
-    for(i=0; i<user_names.length; i++)
-    {
-    	process.stdout.write(" array" + i + ": " + user_names[i] + " : " + typeof(user_names[i]));
-    }
-    console.log("\n---\n");
-}
-
 server.on("connection", function(socket){
     console.log("node: notun connection socket: " + socket._handle.fd);
     phase[socket._handle.fd] = 0;
@@ -81,12 +58,6 @@ server.on("connection", function(socket){
 	    {
 		console.log("img ese geche: " + read_bytes + " / " + img_size + " bytes  img.size=" + img.length);
 		console.log("---\n");
-
-		// console.log(img);
-		//img = img.toString('hex');
-		//img = setCharAt(img, 1, 'i');
-		//img = img.slice(1); // reformat to hex string with i at beginning
-		//console.log(img.slice(0, 10));
 
 		read_bytes = 0;
 		img_size = 0;
@@ -129,17 +100,21 @@ server.on("connection", function(socket){
 
 	    case 1: // phase 1 new user
 	    pass[sock_map[fd]] = String(buffer);
+	    if(pass[sock_map[fd]].length == 0)
+	    {
+		console.log("invalid password"); break;
+	    }
+
 	    socket.write("ok"); // faltu
 	    phase[fd] = 3;
 	    console.log("new user");
-
 	    user_names.push(sock_map[fd]);
 	    // active_users.push(sock_map[fd]);
 	    break;
 
 	    case 2: // phase 2 old user
 	    if(String(buffer) == pass[sock_map[fd]]) socket.write("ok");
-	    else { socket.write("no"); phas[fd] = 0; break; }
+	    else { socket.write("no"); phase[fd] = 0; break; }
 	    phase[fd] = 3;
 	    console.log("old user");
 
@@ -163,7 +138,7 @@ server.on("connection", function(socket){
 	        if(sock_map[fd] == active_users[i])
 	    	sockets[active_users[i]].write("t// you joined as " + sock_map[fd] + "\n");
 	        else
-	    	sockets[active_users[i]].write("t// " + sock_map[fd] + " joined\n");
+	    	sockets[active_users[i]].write("c// " + sock_map[fd] + " joined\n");
 	    }
 	    phase[fd] = 5;
 	    break;
@@ -255,27 +230,31 @@ server.on("connection", function(socket){
 		}
 		break;
 
+		case 120: // [x] disconnect
+		fd = socket._handle.fd;
+		if(phase[fd] == 5)
+		{
+		    for(i=0; i<active_users.length; i++) // sending disconnected message
+		    {
+			if(sock_map[fd] != active_users[i])
+			    sockets[active_users[i]].write("d// " + sock_map[fd] + " disconnected\n");
+		    }
+		    r = active_users.indexOf(sock_map[fd]);
+		    if(r != -1) active_users.splice(r, 1);
+		}
+		phase[fd] = 0;
+		console.log("first byte x: disconnect " + sock_map[fd]);
+		break;
 		
 	    } // inner switch
 	    break;
 	} // outer switch
 	console.log("---\n");
     });
-
     socket.on("end", function(){
-	fd = socket._handle.fd;
-	for(i=0; i<active_users.length; i++) // sending disconnected message
-	{
-	    if(sock_map[fd] != active_users[i])
-		sockets[active_users[i]].write("t// " + sock_map[fd] + " disconnected\n");
-	}
-	r = active_users.indexOf(sock_map[fd]);
-	if(r != -1) active_users.splice(r, 1);
-	phase[fd] = 0;
 	console.log("end called");
 	console.log("---\n");
     });
-
     socket.on("close", function(){
 	console.log("close called");
 	console.log("---\n");
@@ -284,9 +263,7 @@ server.on("connection", function(socket){
 	console.log("error called");
 	console.log("---\n");
     });
-
 });
-
 server.listen(8001, function(){
     console.log("server listening to port: 8001") 
 });
